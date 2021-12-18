@@ -21,27 +21,42 @@ async function searchShows(query) {
 	const shows = [];
 	for (let data of res.data) {
 		const { id, name, summary } = data.show;
-
-		const imgRes = await axios.get(`https://api.tvmaze.com/shows/${id}/images`);
-		let image = null;
-		for (let data of imgRes.data) {
-			if (data.resolutions.medium) {
-				image = data.resolutions.medium.url;
-				break;
-			} else if (data.resolutions.original) {
-				image = data.resolutions.original.url;
-				break;
-			}
-		}
-
-		if (!image) {
-			image = 'https://tinyurl.com/tv-missing';
-		}
-
-		shows.push({ id, name, summary, image });
+		const image = await searchImage(id);
+		const cast = await searchCast(id);
+		shows.push({ id, name, summary, image, cast });
 	}
 
 	return shows;
+}
+
+async function searchImage(id) {
+	const imgRes = await axios.get(`https://api.tvmaze.com/shows/${id}/images`);
+	let image = null;
+	for (let data of imgRes.data) {
+		if (data.resolutions.medium) {
+			image = data.resolutions.medium.url;
+			break;
+		} else if (data.resolutions.original) {
+			image = data.resolutions.original.url;
+			break;
+		}
+	}
+
+	if (!image) {
+		image = 'https://tinyurl.com/tv-missing';
+	}
+
+	return image;
+}
+
+async function searchCast(id) {
+	const castRes = await axios.get(`https://api.tvmaze.com/shows/${id}/cast`);
+	const castList = [];
+	for (let castdata of castRes.data) {
+		castList.push(castdata.person.name);
+	}
+
+	return castList.slice(0, 5);
 }
 
 /** Populate shows list:
@@ -53,16 +68,44 @@ function populateShows(shows) {
 	$showsList.empty();
 
 	for (let show of shows) {
+		let cast = '';
+		if (show.cast.length !== 0) {
+			cast = `<hr>
+      <p class="card-text"><b>Stars: </b>${show.cast}</p>
+      <hr>`;
+		}
 		let $item = $(
 			`<div class="col-md-6 col-lg-3 Show" data-show-id="${show.id}">
-         <div class="card" data-show-id="${show.id}">
-         <img class="card-img-top" src=${show.image}>  
-         <div class="card-body">
-             <h5 class="card-title">${show.name}</h5>
-             <p class="card-text">${show.summary}</p>
-             <a href="#" class="btn btn-primary">Episodes</a>
-           </div>
-         </div>
+        <div class="card" data-show-id="${show.id}" data-show-name="${show.name}">
+          <img class="card-img-top" src=${show.image}>  
+          <div class="card-body">
+              <h5 class="card-title">${show.name}</h5>
+              <p class="card-text" id="summary">${show.summary}</p>
+              ${cast}
+              <!-- Button trigger modal -->
+              <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#episodeModal">
+                Episodes
+              </button>
+              <!-- Modal -->
+              <div class="modal fade" id="episodeModal" tabindex="-1" aria-labelledby="episodeLabel" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+                  <div class="modal-content">
+                    <div class="modal-header">
+                      <h5 class="modal-title" id="episodeLabel">${show.name} Episodes</h5>
+                      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                      <ul id="episodes-list">
+                      </ul>
+                    </div>
+                    <div class="modal-footer">
+                      <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+          </div>
+        </div>
        </div>
       `
 		);
@@ -86,13 +129,37 @@ async function getEpisodes(id) {
 	return episodes;
 }
 
-function populateEpisodes(episodes) {
-	for (let episode of episodes) {
-		const episodeItem = $(`<li>${episode.name} (season ${episode.season}, number ${episode.number})</li>`);
-		$('#episodes-list').append(episodeItem);
-	}
+function populateEpisodes(episodes, showname, show) {
+	// show.after(`<!-- Modal -->
+	//   <div class="modal fade" id="episodeModal" tabindex="-1" aria-labelledby="episodeLabel" aria-hidden="true">
+	//     <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+	//       <div class="modal-content">
+	//         <div class="modal-header">
+	//           <h5 class="modal-title" id="episodeLabel">${showname} Episodes</h5>
+	//           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+	//         </div>
+	//         <div class="modal-body">
+	//           <ul id="episodes-list">
+	//           </ul>
+	//         </div>
+	//         <div class="modal-footer">
+	//           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+	//         </div>
+	//       </div>
+	//     </div>
+	//   </div>`);
+	$('#episodeLabel').text(`${showname} Episodes`);
 
-	$('#episodes-area').show();
+	$('#episodes-list').empty();
+	if (episodes.length === 0) {
+		const episodeItem = $('<li>NONE</li>');
+		$('#episodes-list').append(episodeItem);
+	} else {
+		for (let episode of episodes) {
+			const episodeItem = $(`<li>${episode.name} (season ${episode.season}, number ${episode.number})</li>`);
+			$('#episodes-list').append(episodeItem);
+		}
+	}
 }
 
 /** Handle search form submission:
@@ -105,18 +172,17 @@ $(document).ready(function() {
 		evt.preventDefault();
 		let query = $('#search-query').val();
 		if (!query) return;
-		//$('#episodes-area').hide();
 		let shows = await searchShows(query);
 		populateShows(shows);
 		$('#search-query').val('');
 	});
 
-	$('#shows-list').on('click', 'a', async function(event) {
+	$('#shows-list').on('click', 'button', async function(event) {
 		event.preventDefault();
-
 		const id = $(this).closest('.card').data('show-id');
-		console.log(id);
+		const showname = $(this).closest('.card').data('show-name');
+		const show = $(this);
 		const episodes = await getEpisodes(id);
-		populateEpisodes(episodes);
+		populateEpisodes(episodes, showname, show);
 	});
 });
