@@ -74,6 +74,8 @@ function populateShows(shows) {
       <p class="card-text"><b>Stars: </b>${show.cast}</p>
       <hr>`;
 		}
+		const id = show.id;
+		const name = show.name;
 		let $item = $(
 			`<div class="col-md-6 col-lg-3 Show" data-show-id="${show.id}">
         <div class="card" data-show-id="${show.id}" data-show-name="${show.name}">
@@ -83,20 +85,20 @@ function populateShows(shows) {
               <p class="card-text" id="summary">${show.summary}</p>
               ${cast}
               <!-- Button trigger modal -->
-              <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#episodeModal">
+              <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#episodeModal-${id}">
                 Episodes
               </button>
               <!-- Modal -->
-              <div class="modal fade" id="episodeModal" tabindex="-1" aria-labelledby="episodeLabel" aria-hidden="true">
+              <div class="modal fade" id="episodeModal-${id}" tabindex="-1" aria-labelledby="episodeLabel-${id}" aria-hidden="true">
                 <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
                   <div class="modal-content">
                     <div class="modal-header">
-                      <h5 class="modal-title" id="episodeLabel">${show.name} Episodes</h5>
+                      <h5 class="modal-title" id="episodeLabel-${id}">${name} Episodes</h5>
                       <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
-                      <ul id="episodes-list">
-                      </ul>
+                    <ul id= "ul-${id}">
+                    </ul>
                     </div>
                     <div class="modal-footer">
                       <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
@@ -129,35 +131,17 @@ async function getEpisodes(id) {
 	return episodes;
 }
 
-function populateEpisodes(episodes, showname, show) {
-	// show.after(`<!-- Modal -->
-	//   <div class="modal fade" id="episodeModal" tabindex="-1" aria-labelledby="episodeLabel" aria-hidden="true">
-	//     <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
-	//       <div class="modal-content">
-	//         <div class="modal-header">
-	//           <h5 class="modal-title" id="episodeLabel">${showname} Episodes</h5>
-	//           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-	//         </div>
-	//         <div class="modal-body">
-	//           <ul id="episodes-list">
-	//           </ul>
-	//         </div>
-	//         <div class="modal-footer">
-	//           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-	//         </div>
-	//       </div>
-	//     </div>
-	//   </div>`);
-	$('#episodeLabel').text(`${showname} Episodes`);
-
-	$('#episodes-list').empty();
+function populateEpisodes(id, episodes, showname, show) {
+	const ulID = `#ul-${id}`;
+	$(`${ulID}`).empty();
+	//console.log('ul ID = ', ulID);
 	if (episodes.length === 0) {
 		const episodeItem = $('<li>NONE</li>');
-		$('#episodes-list').append(episodeItem);
+		$(`${ulID}`).append(episodeItem);
 	} else {
 		for (let episode of episodes) {
 			const episodeItem = $(`<li>${episode.name} (season ${episode.season}, number ${episode.number})</li>`);
-			$('#episodes-list').append(episodeItem);
+			$(`${ulID}`).append(episodeItem);
 		}
 	}
 }
@@ -177,12 +161,15 @@ $(document).ready(function() {
 		$('#search-query').val('');
 	});
 
+	//??? can't use $('button')
+	console.log('before click on button', $('#episodeLabel').text());
 	$('#shows-list').on('click', 'button', async function(event) {
+		console.log('after click on button');
 		event.preventDefault();
 		const id = $(this).closest('.card').data('show-id');
 		const showname = $(this).closest('.card').data('show-name');
 		const show = $(this);
 		const episodes = await getEpisodes(id);
-		populateEpisodes(episodes, showname, show);
+		populateEpisodes(id, episodes, showname, show);
 	});
 });
